@@ -1,9 +1,10 @@
 
-#ifndef JY_LFU_BASIC_SIM_H
-#define JY_LFU_BASIC_SIM_H
+#ifndef JY_LFU_CACHE_H
+#define JY_LFU_CACHE_H
 
 #include "uthash.h"
 #include "utlist.h"
+#include "avltree.h"
 
 #define CACHE_HIT 1
 #define CACHE_MISS 0
@@ -28,6 +29,12 @@ typedef struct _List_LFU_Item_t {
 	struct _List_LFU_Item_t *prev;
 	//this is the hash handler for uthash, allow O(1) lookup
 	UT_hash_handle list_lfu_hh; 
+	UT_hash_handle evict_hh;
+
+#ifdef PERFECT_LFU
+	struct avl_node avl;
+#endif
+
 } List_LFU_Item_t;
 
 
@@ -39,6 +46,8 @@ typedef struct _List_LFU_Freq_Node_t {
 	
 	struct _List_LFU_Freq_Node_t *next; //UTlist pointer
 	struct _List_LFU_Freq_Node_t *prev;
+
+	/****add avl struct****/
 
 } List_LFU_Freq_Node_t;
 
@@ -53,6 +62,10 @@ typedef struct _LFU_Cache_t {
 	uint32_t currSize; //number of item in curr cache
 	uint32_t capacity; // the size of cache
 
+#ifdef PERFECT_LFU
+	List_LFU_Item_t *Evicted_HashItems; //use to store evicted item 
+#endif
+	
 	List_LFU_Item_t *HashItems; //head of Uthash, must init to NULL
 	List_LFU_Freq_Node_t *FreqList; // head of freqList, must init to NULL for Utlist
 } LFU_Cache_t;
@@ -86,4 +99,4 @@ List_LFU_Freq_Node_t* newFreqListNode(uint32_t freq);
 List_LFU_Item_t* newLFUListItem(uint64_t addrKey, uint32_t size);
 
 
-#endif /*JY_LFU_BASIC_SIM_H*/
+#endif /*JY_LFU_CACHE_H*/

@@ -1,5 +1,5 @@
 
-#include "lfu_basic_sim.h"
+#include "lfu_cache.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
@@ -19,6 +19,10 @@ LFU_Cache_t* cacheInit(uint32_t cap) {
 	cache->capacity = cap;
 	cache->HashItems = NULL; //required for UThash
 	cache->FreqList= NULL; //required for UTlist
+
+#ifdef PERFECT_LFU
+	cache->Evicted_HashItems = NULL; //required for hashtable for evicted items
+#endif 
 
 	assert(cache != NULL);
 	return cache;
@@ -44,6 +48,17 @@ void cacheFree(LFU_Cache_t* cache) {
 		DL_DELETE(head, elt);
 		free(elt);
 	}
+
+#ifdef PERFECT_LFU	
+	ielt = NULL;
+	itmp = NULL;
+	HASH_ITER(evict_hh, cache->Evicted_HashItems, ielt, itmp) {
+		HASH_DELETE(evict_hh, cache->Evicted_HashItems, ielt); /* delete; users advances to next */
+		free(ielt);             /* optional- if you want to free  */
+	}
+#endif
+
+	free(cache);
 
 }
 
@@ -123,6 +138,11 @@ void updateItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 
 void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 	assert(cache != NULL && item != NULL);
+
+
+#ifdef PERFECT_LFU
+	
+#elif
 	//begin insert item into frequency 1 node
 	//if such node does not exist create one
 	List_LFU_Freq_Node_t * freq1Node = cache->FreqList;
@@ -138,6 +158,8 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 	DL_APPEND(freq1Node->head, item);
 	freq1Node->size++;
 	HASH_ADD(list_lfu_hh, cache->HashItems, addrKey, sizeof(uint64_t), item);
+
+#endif /*PERFECT_LFU*/
 
 }
 
@@ -155,7 +177,12 @@ void evictItem(LFU_Cache_t* cache, uint32_t newItemSize) {
 		List_LFU_Item_t* del = cache->FreqList->head;
 		DL_DELETE(cache->FreqList->head, del);
 		HASH_DELETE(list_lfu_hh, cache->HashItems, del);
+
+#ifdef PERFECT_LFU
+		HASH_ADD(evict_hh, cache->Evicted_HashItems, addrKey, sizeof(uint64_t), del);
+#elif
 		free(del);
+#endif	
 
 		cache->FreqList->size--;
 		if(cache->FreqList->size <= 0) {
@@ -175,6 +202,18 @@ void evictItem(LFU_Cache_t* cache, uint32_t newItemSize) {
 
 }
 
+List_LFU_Item_t* getEvictedItem(LFU_Cache_t* cache, uint64_t key) {
+
+#ifdef PERFECT_LFU
+	List_LFU_Item_t *ret;
+	HASH_FIND(evict_hh, cache->Evicted_HashItems, &key, sizeof(uint64_t), ret);
+	HASH_DELETE(evict_hh, cache->Evicted_HashItems, ret);
+	return ret;
+#endif
+	return NULL;
+}
+
+
 uint8_t access(LFU_Cache_t* cache, uint64_t key, uint32_t size) {
 	assert(cache != NULL);
 	cache->totRef++;
@@ -185,8 +224,14 @@ uint8_t access(LFU_Cache_t* cache, uint64_t key, uint32_t size) {
 		updateItem(cache, item);
 		return CACHE_HIT;
 	} else {
-		item = createItem(key, size); //increment totKEY
-		cache->totKey++;
+		//check if item is in the evicted table
+		item = getEvictedItem(cache, key);
+		
+		if(item == NULL) {
+			item = createItem(key, size); //increment totKEY
+			cache->totKey++;
+		}
+		
 		if (cache->currSize+item->size < cache->capacity)
 			cache->currSize += item->size;
 	 	else {
