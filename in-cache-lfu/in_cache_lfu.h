@@ -29,10 +29,10 @@ typedef struct _List_LFU_Item_t {
 	struct _List_LFU_Item_t *prev;
 	//this is the hash handler for uthash, allow O(1) lookup
 	UT_hash_handle list_lfu_hh; 
-	UT_hash_handle evict_hh;
+	
 
-#ifdef PERFECT_LFU
-	struct avl_node avl;
+#if defined(PERFECT_LFU) || defined(FAST_PERFECT_LFU)
+	UT_hash_handle evict_hh;
 #endif
 
 } List_LFU_Item_t;
@@ -48,6 +48,9 @@ typedef struct _List_LFU_Freq_Node_t {
 	struct _List_LFU_Freq_Node_t *prev;
 
 	/****add avl struct****/
+#ifdef FAST_PERFECT_LFU
+	struct avl_node avl;
+#endif
 
 } List_LFU_Freq_Node_t;
 
@@ -62,9 +65,14 @@ typedef struct _LFU_Cache_t {
 	uint32_t currSize; //number of item in curr cache
 	uint32_t capacity; // the size of cache
 
-#ifdef PERFECT_LFU
+#if defined(PERFECT_LFU) || defined(FAST_PERFECT_LFU)
 	List_LFU_Item_t *Evicted_HashItems; //use to store evicted item 
 #endif
+	
+#ifdef FAST_PERFECT_LFU
+	struct avl_tree tree; //use for fast non 1 frequency insertion
+#endif /*FAST_PERFECT_LFU*/
+
 	
 	List_LFU_Item_t *HashItems; //head of Uthash, must init to NULL
 	List_LFU_Freq_Node_t *FreqList; // head of freqList, must init to NULL for Utlist

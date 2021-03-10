@@ -5,6 +5,18 @@
 #include <assert.h>
 
 
+#ifdef FAST_PERFECT_LFU
+int cmp_func(struct avl_node *a, struct avl_node *b, void *aux) {
+	struct kv_node *aa, *bb;
+    aa = _get_entry(a, struct kv_node, avl);
+    bb = _get_entry(b, struct kv_node, avl);
+
+    if (aa->freq < bb->freq) return -1;
+    else if (aa->freq > bb->freq) return 1;
+    else return 0;
+}
+#endif
+
 LFU_Cache_t* cacheInit(uint32_t cap) {
 
 	LFU_Cache_t* cache = malloc(sizeof(LFU_Cache_t));
@@ -141,8 +153,10 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 
 
 #ifdef PERFECT_LFU
-	
-#elif
+
+#elif FAST_PERFECT_LFU
+
+#else
 	//begin insert item into frequency 1 node
 	//if such node does not exist create one
 	List_LFU_Freq_Node_t * freq1Node = cache->FreqList;
@@ -178,9 +192,9 @@ void evictItem(LFU_Cache_t* cache, uint32_t newItemSize) {
 		DL_DELETE(cache->FreqList->head, del);
 		HASH_DELETE(list_lfu_hh, cache->HashItems, del);
 
-#ifdef PERFECT_LFU
+#if defined(PERFECT_LFU) || defined(FAST_PERFECT_LFU)
 		HASH_ADD(evict_hh, cache->Evicted_HashItems, addrKey, sizeof(uint64_t), del);
-#elif
+#else
 		free(del);
 #endif	
 
@@ -204,7 +218,7 @@ void evictItem(LFU_Cache_t* cache, uint32_t newItemSize) {
 
 List_LFU_Item_t* getEvictedItem(LFU_Cache_t* cache, uint64_t key) {
 
-#ifdef PERFECT_LFU
+#if defined(PERFECT_LFU) || defined(FAST_PERFECT_LFU)
 	List_LFU_Item_t *ret;
 	HASH_FIND(evict_hh, cache->Evicted_HashItems, &key, sizeof(uint64_t), ret);
 	HASH_DELETE(evict_hh, cache->Evicted_HashItems, ret);
@@ -246,3 +260,5 @@ uint8_t access(LFU_Cache_t* cache, uint64_t key, uint32_t size) {
 		return CACHE_MISS;
 	}
 }
+
+
