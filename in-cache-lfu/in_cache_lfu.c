@@ -14,7 +14,7 @@ LFU_Cache_t* cacheInit(uint32_t cap) {
 	}
 	cache->totKey = 0;
 	cache->totRef = 0;
-
+	cache->totUniqueFreq = 0;
 	cache->currSize = 0;
 	cache->capacity = cap;
 	cache->HashItems = NULL; //required for UThash
@@ -61,7 +61,7 @@ List_LFU_Freq_Node_t* newFreqListNode(uint32_t freq) {
 	return ret;
 }
 
-List_LFU_Item_t* newLFUListItem(uint64_t addrKey) {
+List_LFU_Item_t* newLFUListItem(uint64_t addrKey, uint32_t size) {
 	List_LFU_Item_t* ret;
 	ret = malloc(sizeof(List_LFU_Item_t));
 	if (ret == NULL) {
@@ -70,6 +70,7 @@ List_LFU_Item_t* newLFUListItem(uint64_t addrKey) {
 	}
 
 	ret->addrKey = addrKey;
+	ret->size = size;
 	ret->freqNode = NULL;
 	return ret;
 }
@@ -77,9 +78,9 @@ List_LFU_Item_t* newLFUListItem(uint64_t addrKey) {
 
 
 
-List_LFU_Item_t* createItem(uint64_t key) {
+List_LFU_Item_t* createItem(uint64_t key, uint32_t size) {
 
-	return newLFUListItem(key);
+	return newLFUListItem(key, size);
 }
 
 List_LFU_Item_t* findItem(LFU_Cache_t* cache, uint64_t key) {
@@ -103,6 +104,7 @@ void updateItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 		//next node doesnt exist 
 		new_freqNode = newFreqListNode(new_freq);
 		DL_APPEND_ELEM(cache->FreqList, prev_freqNode, new_freqNode);
+		cache->totUniqueFreq++;
 	} 
 	//next node already exist
 	DL_DELETE(prev_freqNode->head, item);
@@ -128,6 +130,7 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 		freq1Node = newFreqListNode(1);
 		//prepend the node to the beginning of the freqlist
 		DL_PREPEND(cache->FreqList, freq1Node);
+		cache->totUniqueFreq++;
 	}
 	//point to the parent freqNode
 	item->freqNode = freq1Node;
@@ -138,7 +141,7 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 
 }
 
-void evictItem(LFU_Cache_t* cache) {
+void evictItem(LFU_Cache_t* cache, uint32_t newItemSize) {
 	//the evicted item should be item in the head of item list
 	//in the head of freq list
 	assert(cache != NULL);
@@ -146,38 +149,55 @@ void evictItem(LFU_Cache_t* cache) {
 	assert(cache->FreqList != NULL);
 	assert(cache->FreqList->head != NULL);
 	//consider merge this part
-	List_LFU_Item_t* del = cache->FreqList->head;
-	DL_DELETE(cache->FreqList->head, del);
-	HASH_DELETE(list_lfu_hh, cache->HashItems, del);
-	free(del);
+	while (cache->FreqList->head != NULL 
+		&& cache->currSize+newItemSize < cache->capacity) {
+		
+		List_LFU_Item_t* del = cache->FreqList->head;
+		DL_DELETE(cache->FreqList->head, del);
+		HASH_DELETE(list_lfu_hh, cache->HashItems, del);
+		free(del);
 
-	cache->FreqList->size--;
-	if(cache->FreqList->size <= 0) {
-		List_LFU_Freq_Node_t* tmp = cache->FreqList;
-		DL_DELETE(cache->FreqList, tmp); //head node
-		free(tmp);
+		cache->FreqList->size--;
+		if(cache->FreqList->size <= 0) {
+			List_LFU_Freq_Node_t* tmp = cache->FreqList;
+			DL_DELETE(cache->FreqList, tmp); //head node
+			
+			free(tmp);
+			cache->totUniqueFreq--;
+
+		}
+	}
+
+	if (cache->totUniqueFreq == 0 && cache->currSize+newItemSize < cache->capacity) {
+		perror("cache eviction: not enough memory error!\n")
+		exit(-1);
 	}
 
 }
 
-uint8_t access(LFU_Cache_t* cache, uint64_t key) {
+uint8_t access(LFU_Cache_t* cache, uint64_t key, uint32_t size) {
 	assert(cache != NULL);
 	cache->totRef++;
 
-	List_LFU_Item_t* curr = NULL;
-	curr = findItem(cache, key);
-	if (curr != NULL) {
-		updateItem(cache, curr);
+	List_LFU_Item_t* item = NULL;
+	item = findItem(cache, key);
+	if (item != NULL) {
+		updateItem(cache, item);
 		return CACHE_HIT;
 	} else {
-		curr = createItem(key); //increment totKEY
+		item = createItem(key, size); //increment totKEY
 		cache->totKey++;
-		if (cache->currSize < cache->capacity)
-			cache->currSize++;
-	 	else 
-			evictItem(cache);
+		if (cache->currSize+item->size < cache->capacity)
+			cache->currSize += item->size;
+	 	else {
+	 		if(cache->capacity < size) {
+	 			perror("cache too small to fit item.\n")
+	 			exit(-1)
+	 		}
+			evictItem(cache, item->size);
+	 	}
 		
-		addItem(cache, curr);
+		addItem(cache, item);
 		return CACHE_MISS;
 	}
 }

@@ -21,7 +21,7 @@ struct _List_LFU_Item_t;
 //Object structs
 typedef struct _List_LFU_Item_t {
 	uint64_t addrKey; //item's key
-
+	uint32_t size; //size of current item
 	struct _List_LFU_Freq_Node_t *freqNode; //all items are stored under freqNode
 											//pointer to such Node
 	struct _List_LFU_Item_t *next; //used in Utlist
@@ -48,6 +48,8 @@ typedef struct _LFU_Cache_t {
 	uint32_t totKey;//unqiue keys
 	uint32_t totRef;//num of refs
 
+	uint32_t totUniqueFreq; //total number of frequency nodes in the cache
+
 	uint32_t currSize; //number of item in curr cache
 	uint32_t capacity; // the size of cache
 
@@ -67,7 +69,7 @@ void cacheFree(LFU_Cache_t* cache);
 
 //return LFU_HIT if an access is hit
 //return LFU_MISS if an access is miss
-uint8_t access(LFU_Cache_t* cache, uint64_t key);
+uint8_t access(LFU_Cache_t* cache, uint64_t key, uint32_t size);
 
 
 
@@ -78,10 +80,10 @@ void evictItem(LFU_Cache_t* cache);
 void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item);
 void updateItem(LFU_Cache_t* cache, List_LFU_Item_t* item);
 //for now only need key, later, depend on the LFU variation, we might have to add more
-List_LFU_Item_t* createItem(uint64_t key);
+List_LFU_Item_t* createItem(uint64_t key, uint32_t size);
 List_LFU_Item_t* findItem(LFU_Cache_t* cache, uint64_t key);
 List_LFU_Freq_Node_t* newFreqListNode(uint32_t freq);
-List_LFU_Item_t* newLFUListItem(uint64_t addrKey);
+List_LFU_Item_t* newLFUListItem(uint64_t addrKey, uint32_t size);
 
 
 #endif /*JY_LFU_BASIC_SIM_H*/
