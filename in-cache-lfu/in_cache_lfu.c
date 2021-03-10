@@ -99,6 +99,9 @@ List_LFU_Item_t* newLFUListItem(uint64_t addrKey, uint32_t size) {
 	ret->addrKey = addrKey;
 	ret->size = size;
 	ret->freqNode = NULL;
+#if defined(PERFECT_LFU) || defined(FAST_PERFECT_LFU)
+	ret->freq = 1;
+#endif
 	return ret;
 }
 
@@ -153,7 +156,40 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 
 
 #ifdef PERFECT_LFU
+	//this will be last function to be implement
+	List_LFU_Freq_Node_t *head, *elt, *tmp;
+	List_LFU_Item_t *ihead, *ielt, *itmp; 
 
+	head = cache->FreqList;
+
+	int flag = 1;
+
+	DL_FOREACH_SAFE(head,elt,tmp) {
+		if(elt->freq == item->freq) {
+			DL_APPEND(elt->head, item); //add item to such node
+			elt->size++;
+			flag = 0;
+			break;
+		} else if(elt->freq > item->freq) {
+			List_LFU_Freq_Node_t * freqNode = newFreqListNode(item->freq);
+			DL_PREPEND_ELEM(cache->FreqList,elt ,freqNode);
+			cache->totUniqueFreq++;
+
+			DL_APPEND(freqNode->head, item);
+			freqNode->size++;
+			flag = 0;
+			break;
+		}
+	}
+
+	if (flag == 1) {
+		List_LFU_Freq_Node_t * freqNode = newFreqListNode(item->freq);
+			DL_APPEND(cache->FreqList, freqNode);
+			cache->totUniqueFreq++;
+
+			DL_APPEND(freqNode->head, item);
+			freqNode->size++;
+	}
 #elif FAST_PERFECT_LFU
 
 #else
@@ -171,10 +207,9 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 	//from here, insert the item to freq list
 	DL_APPEND(freq1Node->head, item);
 	freq1Node->size++;
-	HASH_ADD(list_lfu_hh, cache->HashItems, addrKey, sizeof(uint64_t), item);
-
 #endif /*PERFECT_LFU*/
 
+	HASH_ADD(list_lfu_hh, cache->HashItems, addrKey, sizeof(uint64_t), item);
 }
 
 void evictItem(LFU_Cache_t* cache, uint32_t newItemSize) {
@@ -221,7 +256,10 @@ List_LFU_Item_t* getEvictedItem(LFU_Cache_t* cache, uint64_t key) {
 #if defined(PERFECT_LFU) || defined(FAST_PERFECT_LFU)
 	List_LFU_Item_t *ret;
 	HASH_FIND(evict_hh, cache->Evicted_HashItems, &key, sizeof(uint64_t), ret);
-	HASH_DELETE(evict_hh, cache->Evicted_HashItems, ret);
+	if (ret != NULL) {
+		HASH_DELETE(evict_hh, cache->Evicted_HashItems, ret);
+		ret->freq += 1;
+	}
 	return ret;
 #endif
 	return NULL;

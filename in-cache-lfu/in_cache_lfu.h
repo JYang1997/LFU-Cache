@@ -32,6 +32,7 @@ typedef struct _List_LFU_Item_t {
 	
 
 #if defined(PERFECT_LFU) || defined(FAST_PERFECT_LFU)
+	uint64_t freq;
 	UT_hash_handle evict_hh;
 #endif
 
@@ -68,7 +69,7 @@ typedef struct _LFU_Cache_t {
 #if defined(PERFECT_LFU) || defined(FAST_PERFECT_LFU)
 	List_LFU_Item_t *Evicted_HashItems; //use to store evicted item 
 #endif
-	
+
 #ifdef FAST_PERFECT_LFU
 	struct avl_tree tree; //use for fast non 1 frequency insertion
 #endif /*FAST_PERFECT_LFU*/
