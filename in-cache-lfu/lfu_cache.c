@@ -158,7 +158,6 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 #ifdef PERFECT_LFU
 	//this will be last function to be implement
 	List_LFU_Freq_Node_t *head, *elt, *tmp;
-	List_LFU_Item_t *ihead, *ielt, *itmp; 
 
 	head = cache->FreqList;
 
@@ -192,6 +191,40 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 	}
 #elif FAST_PERFECT_LFU
 	//insert into avl tree
+	//first you want to search see if it exist
+	//if it does not exist than find smallest key greater than it
+	//if still not exist append.
+	struct avl_node *cur;
+	List_LFU_Freq_Node_t *node, query;
+	node = NULL;
+	query.freq = item->freq;
+	cur = avl_search_greater(&(cache->tree), &query.avl, cmp_func);
+	if (cur != NULL) { 
+		node = _get_entry(cur, List_LFU_Freq_Node_t, avl);
+		if (node->freq == item->freq) {
+			DL_APPEND(node->head, item); //add item to such node
+			node->size++;
+		} else {
+			List_LFU_Freq_Node_t * freqNode = newFreqListNode(item->freq);
+			DL_PREPEND_ELEM(cache->FreqList,node ,freqNode);
+			avl_insert(&(cache->tree), &freqNode->avl, cmp_func);
+			cache->totUniqueFreq++;
+
+			DL_APPEND(freqNode->head, item);
+			freqNode->size++;
+		}
+	} else {//freqNode is not in the cache
+		//add new node to the end
+		//inser it yo avl tree
+		List_LFU_Freq_Node_t * freqNode = newFreqListNode(item->freq);
+		DL_APPEND(cache->FreqList, freqNode);
+		avl_insert(&(cache->tree), &freqNode->avl, cmp_func);
+		cache->totUniqueFreq++;
+
+		DL_APPEND(freqNode->head, item);
+		freqNode->size++;
+	}
+
 #else
 	//begin insert item into frequency 1 node
 	//if such node does not exist create one
