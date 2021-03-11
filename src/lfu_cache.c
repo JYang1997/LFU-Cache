@@ -166,6 +166,7 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 	DL_FOREACH_SAFE(head,elt,tmp) {
 		if(elt->freq == item->freq) {
 			DL_APPEND(elt->head, item); //add item to such node
+			item->freqNode = elt;
 			elt->size++;
 			flag = 0;
 			break;
@@ -173,7 +174,7 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 			List_LFU_Freq_Node_t * freqNode = newFreqListNode(item->freq);
 			DL_PREPEND_ELEM(cache->FreqList,elt ,freqNode);
 			cache->totUniqueFreq++;
-
+			item->freqNode = freqNode;
 			DL_APPEND(freqNode->head, item);
 			freqNode->size++;
 			flag = 0;
@@ -185,7 +186,7 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 		List_LFU_Freq_Node_t * freqNode = newFreqListNode(item->freq);
 			DL_APPEND(cache->FreqList, freqNode);
 			cache->totUniqueFreq++;
-
+			item->freqNode = freqNode;
 			DL_APPEND(freqNode->head, item);
 			freqNode->size++;
 	}
@@ -203,13 +204,14 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 		node = _get_entry(cur, List_LFU_Freq_Node_t, avl);
 		if (node->freq == item->freq) {
 			DL_APPEND(node->head, item); //add item to such node
+			item->freqNode = node;
 			node->size++;
 		} else {
 			List_LFU_Freq_Node_t * freqNode = newFreqListNode(item->freq);
 			DL_PREPEND_ELEM(cache->FreqList,node ,freqNode);
 			avl_insert(&(cache->tree), &freqNode->avl, cmp_func);
 			cache->totUniqueFreq++;
-
+			item->freqNode = freqNode;
 			DL_APPEND(freqNode->head, item);
 			freqNode->size++;
 		}
@@ -220,7 +222,7 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 		DL_APPEND(cache->FreqList, freqNode);
 		avl_insert(&(cache->tree), &freqNode->avl, cmp_func);
 		cache->totUniqueFreq++;
-
+		item->freqNode = freqNode;
 		DL_APPEND(freqNode->head, item);
 		freqNode->size++;
 	}
@@ -253,11 +255,13 @@ void evictItem(LFU_Cache_t* cache, uint32_t newItemSize) {
 	assert(cache->FreqList != NULL);
 	assert(cache->FreqList->head != NULL);
 	//consider merge this part
-	while (cache->FreqList->head != NULL 
-		&& cache->currSize+newItemSize < cache->capacity) {
+	while (cache->FreqList != NULL 
+		&& cache->currSize+newItemSize > cache->capacity) {
 		
 		List_LFU_Item_t* del = cache->FreqList->head;
+		cache->currSize -= del->size;
 		DL_DELETE(cache->FreqList->head, del);
+
 		HASH_DELETE(list_lfu_hh, cache->HashItems, del);
 
 #if defined(PERFECT_LFU) || defined(FAST_PERFECT_LFU)
@@ -280,7 +284,7 @@ void evictItem(LFU_Cache_t* cache, uint32_t newItemSize) {
 		}
 	}
 
-	if (cache->totUniqueFreq == 0 && cache->currSize+newItemSize < cache->capacity) {
+	if (cache->totUniqueFreq == 0 && cache->currSize+newItemSize > cache->capacity) {
 		perror("cache eviction: not enough memory error!\n");
 		exit(-1);
 	}
@@ -320,7 +324,7 @@ uint8_t access(LFU_Cache_t* cache, uint64_t key, uint32_t size) {
 			cache->totKey++;
 		}
 		
-		if (cache->currSize+item->size < cache->capacity)
+		if (cache->currSize+item->size <= cache->capacity)
 			cache->currSize += item->size;
 	 	else {
 	 		if(cache->capacity < size) {
@@ -329,7 +333,7 @@ uint8_t access(LFU_Cache_t* cache, uint64_t key, uint32_t size) {
 	 		}
 			evictItem(cache, item->size);
 	 	}
-		
+	
 		addItem(cache, item);
 		return CACHE_MISS;
 	}
