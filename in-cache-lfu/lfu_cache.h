@@ -4,7 +4,10 @@
 
 #include "uthash.h"
 #include "utlist.h"
+
+#ifdef FAST_PERFECT_LFU
 #include "avltree.h"
+#endif
 
 #define CACHE_HIT 1
 #define CACHE_MISS 0
@@ -97,7 +100,7 @@ uint8_t access(LFU_Cache_t* cache, uint64_t key, uint32_t size);
 
 //private helpers
 
-void evictItem(LFU_Cache_t* cache);
+void evictItem(LFU_Cache_t* cache, uint32_t newItemSize);
 //this method will add newly created item to the cache,
 void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item);
 void updateItem(LFU_Cache_t* cache, List_LFU_Item_t* item);

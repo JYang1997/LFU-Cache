@@ -191,7 +191,7 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 			freqNode->size++;
 	}
 #elif FAST_PERFECT_LFU
-
+	//insert into avl tree
 #else
 	//begin insert item into frequency 1 node
 	//if such node does not exist create one
@@ -237,7 +237,10 @@ void evictItem(LFU_Cache_t* cache, uint32_t newItemSize) {
 		if(cache->FreqList->size <= 0) {
 			List_LFU_Freq_Node_t* tmp = cache->FreqList;
 			DL_DELETE(cache->FreqList, tmp); //head node
-			
+#ifdef FAST_PERFECT_LFU
+			//remove and rebalance freq node
+
+#endif
 			free(tmp);
 			cache->totUniqueFreq--;
 
@@ -245,7 +248,7 @@ void evictItem(LFU_Cache_t* cache, uint32_t newItemSize) {
 	}
 
 	if (cache->totUniqueFreq == 0 && cache->currSize+newItemSize < cache->capacity) {
-		perror("cache eviction: not enough memory error!\n")
+		perror("cache eviction: not enough memory error!\n");
 		exit(-1);
 	}
 
@@ -288,8 +291,8 @@ uint8_t access(LFU_Cache_t* cache, uint64_t key, uint32_t size) {
 			cache->currSize += item->size;
 	 	else {
 	 		if(cache->capacity < size) {
-	 			perror("cache too small to fit item.\n")
-	 			exit(-1)
+	 			perror("cache too small to fit item.\n");
+	 			exit(-1);
 	 		}
 			evictItem(cache, item->size);
 	 	}

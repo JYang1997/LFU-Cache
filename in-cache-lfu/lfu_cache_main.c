@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/time.h>
-#include "lfu_basic_sim.h"
+#include "lfu_cache.h"
 #include <assert.h>
 
 int TIME_FLAG = 0;
@@ -11,6 +11,8 @@ int trace_processing(LFU_Cache_t* cache, FILE* fd) {
 
 	char *keyStr;
 	uint64_t key;
+	char *sizeStr;
+	uint32_t size;
 	char* ret;
 	char   line[256];
 
@@ -33,13 +35,18 @@ int trace_processing(LFU_Cache_t* cache, FILE* fd) {
 	i=1;
 	while ((ret=fgets(line, 256, fd)) != NULL)
 	{
-		key = strtoull(line, NULL, 10);
-		// keyStr = strtok(line, "\n");
-		
+		keyStr = strtok(line, ",");
+		key = strtoull(keyStr, NULL, 10);
+		sizeStr = strtok(NULL, ",");
+		if (sizeStr != NULL)	
+			size = strtoul(sizeStr, NULL, 10);
+		else
+			size = 1;
+
 		struct timeval  tv1, tv2;
 		gettimeofday(&tv1, NULL);
 
-		if (access(cache, key) == CACHE_MISS)	totMiss++;
+		if (access(cache, key,size) == CACHE_MISS)	totMiss++;
 		
 		gettimeofday(&tv2, NULL);
 		tt_time += (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 + (double) (tv2.tv_sec - tv1.tv_sec);
