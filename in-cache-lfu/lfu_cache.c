@@ -7,9 +7,9 @@
 
 #ifdef FAST_PERFECT_LFU
 int cmp_func(struct avl_node *a, struct avl_node *b, void *aux) {
-	struct kv_node *aa, *bb;
-    aa = _get_entry(a, struct kv_node, avl);
-    bb = _get_entry(b, struct kv_node, avl);
+	List_LFU_Freq_Node_t *aa, *bb;
+    aa = _get_entry(a, List_LFU_Freq_Node_t, avl);
+    bb = _get_entry(b, List_LFU_Freq_Node_t, avl);
 
     if (aa->freq < bb->freq) return -1;
     else if (aa->freq > bb->freq) return 1;
@@ -272,7 +272,7 @@ void evictItem(LFU_Cache_t* cache, uint32_t newItemSize) {
 			DL_DELETE(cache->FreqList, tmp); //head node
 #ifdef FAST_PERFECT_LFU
 			//remove and rebalance freq node
-
+			avl_remove(&(cache->tree), &(tmp->avl));
 #endif
 			free(tmp);
 			cache->totUniqueFreq--;
