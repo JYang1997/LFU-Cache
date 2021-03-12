@@ -43,7 +43,9 @@ typedef struct _List_LFU_Item_t {
 
 
 typedef struct _List_LFU_Freq_Node_t {
-	
+#ifdef FAST_PERFECT_LFU
+	struct avl_node avl;
+#endif	
 	List_LFU_Item_t *head; //head of item list, for utlist must init to NULL
 	uint32_t size; //number of item under curr node
 	uint32_t freq; //frequency represented by curr node
@@ -52,9 +54,7 @@ typedef struct _List_LFU_Freq_Node_t {
 	struct _List_LFU_Freq_Node_t *prev;
 
 	/****add avl struct****/
-#ifdef FAST_PERFECT_LFU
-	struct avl_node avl;
-#endif
+
 
 } List_LFU_Freq_Node_t;
 

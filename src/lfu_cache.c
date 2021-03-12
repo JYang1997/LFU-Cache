@@ -137,6 +137,9 @@ void updateItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 		//next node doesnt exist 
 		new_freqNode = newFreqListNode(new_freq);
 		DL_APPEND_ELEM(cache->FreqList, prev_freqNode, new_freqNode);
+#ifdef FAST_PERFECT_LFU
+		avl_insert(&(cache->tree), &new_freqNode->avl, cmp_func);
+#endif
 		cache->totUniqueFreq++;
 	} 
 
@@ -144,13 +147,14 @@ void updateItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 	DL_DELETE(prev_freqNode->head, item);
 	prev_freqNode->size--;
 	if(prev_freqNode->size <= 0) {
+		cache->totUniqueFreq--;
 		DL_DELETE(cache->FreqList, prev_freqNode);
 #ifdef FAST_PERFECT_LFU
 			//remove and rebalance freq node
 			avl_remove(&(cache->tree), &prev_freqNode->avl);
 #endif
 		free(prev_freqNode);
-		cache->totUniqueFreq--;
+		
 	}
 
 
@@ -164,7 +168,7 @@ void updateItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 #if defined(PERFECT_LFU) || defined(FAST_PERFECT_LFU)
 	item->freq = new_freqNode->freq;
 #endif
-	
+
 }
 
 
@@ -230,7 +234,8 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 			assert(item->freq < node->freq);
 			List_LFU_Freq_Node_t * freqNode = newFreqListNode(item->freq);
 			DL_PREPEND_ELEM(cache->FreqList,node ,freqNode);
-			avl_insert(&(cache->tree), &freqNode->avl, cmp_func);
+			struct avl_node *ret = avl_insert(&(cache->tree), &freqNode->avl, cmp_func);
+			assert(ret == &freqNode->avl);
 			cache->totUniqueFreq++;
 			item->freqNode = freqNode;
 			DL_APPEND(freqNode->head, item);
@@ -241,7 +246,8 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 		//inser it yo avl tree
 		List_LFU_Freq_Node_t * freqNode = newFreqListNode(item->freq);
 		DL_APPEND(cache->FreqList, freqNode);
-		avl_insert(&(cache->tree), &freqNode->avl, cmp_func);
+		struct avl_node *ret = avl_insert(&(cache->tree), &freqNode->avl, cmp_func);
+		assert(ret == &freqNode->avl);
 		cache->totUniqueFreq++;
 		item->freqNode = freqNode;
 		DL_APPEND(freqNode->head, item);

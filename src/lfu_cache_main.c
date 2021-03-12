@@ -100,7 +100,7 @@ arg3: timer flag (1 yes 0 no)\n";
 	int totMiss = trace_processing(cache, rfd);
 	fprintf(stderr,"%d, %f\n",cache->capacity, totMiss/(double)cache->totRef);
 	fprintf(stderr,"total key %d\n",cache->totKey);
-
+	fprintf(stderr,"total node %d\n",cache->totUniqueFreq);
 	if(TIME_FLAG == 1)
 		printf ("Total time = %f seconds\n", tt_time);
 
