@@ -36,6 +36,9 @@ LFU_Cache_t* cacheInit(uint32_t cap) {
 	cache->Evicted_HashItems = NULL; //required for hashtable for evicted items
 #endif 
 
+#ifdef FAST_PERFECT_LFU
+	 avl_init(&(cache->tree), NULL);
+#endif
 	assert(cache != NULL);
 	return cache;
 }
@@ -136,18 +139,32 @@ void updateItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 		DL_APPEND_ELEM(cache->FreqList, prev_freqNode, new_freqNode);
 		cache->totUniqueFreq++;
 	} 
+
 	//next node already exist
 	DL_DELETE(prev_freqNode->head, item);
 	prev_freqNode->size--;
 	if(prev_freqNode->size <= 0) {
 		DL_DELETE(cache->FreqList, prev_freqNode);
+#ifdef FAST_PERFECT_LFU
+			//remove and rebalance freq node
+			avl_remove(&(cache->tree), &prev_freqNode->avl);
+#endif
 		free(prev_freqNode);
+		cache->totUniqueFreq--;
 	}
+
+
 	//add item to the freq node's list's tail, 
 	//(when evict, we start from head of the list to break tie by recency)
+
 	DL_APPEND(new_freqNode->head, item);
 	item->freqNode = new_freqNode;
 	new_freqNode->size++;
+
+#if defined(PERFECT_LFU) || defined(FAST_PERFECT_LFU)
+	item->freq = new_freqNode->freq;
+#endif
+	
 }
 
 
@@ -163,7 +180,10 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 
 	int flag = 1;
 
+
 	DL_FOREACH_SAFE(head,elt,tmp) {
+
+
 		if(elt->freq == item->freq) {
 			DL_APPEND(elt->head, item); //add item to such node
 			item->freqNode = elt;
@@ -207,6 +227,7 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 			item->freqNode = node;
 			node->size++;
 		} else {
+			assert(item->freq < node->freq);
 			List_LFU_Freq_Node_t * freqNode = newFreqListNode(item->freq);
 			DL_PREPEND_ELEM(cache->FreqList,node ,freqNode);
 			avl_insert(&(cache->tree), &freqNode->avl, cmp_func);
@@ -243,7 +264,7 @@ void addItem(LFU_Cache_t* cache, List_LFU_Item_t* item) {
 	DL_APPEND(freq1Node->head, item);
 	freq1Node->size++;
 #endif /*PERFECT_LFU*/
-
+	cache->currSize += item->size;
 	HASH_ADD(list_lfu_hh, cache->HashItems, addrKey, sizeof(uint64_t), item);
 }
 
@@ -276,7 +297,7 @@ void evictItem(LFU_Cache_t* cache, uint32_t newItemSize) {
 			DL_DELETE(cache->FreqList, tmp); //head node
 #ifdef FAST_PERFECT_LFU
 			//remove and rebalance freq node
-			avl_remove(&(cache->tree), &(tmp->avl));
+			avl_remove(&(cache->tree), &tmp->avl);
 #endif
 			free(tmp);
 			cache->totUniqueFreq--;
@@ -324,13 +345,14 @@ uint8_t access(LFU_Cache_t* cache, uint64_t key, uint32_t size) {
 			cache->totKey++;
 		}
 		
-		if (cache->currSize+item->size <= cache->capacity)
-			cache->currSize += item->size;
-	 	else {
+		if (cache->currSize+item->size > cache->capacity)
+		{
+
 	 		if(cache->capacity < size) {
 	 			perror("cache too small to fit item.\n");
 	 			exit(-1);
 	 		}
+	 	
 			evictItem(cache, item->size);
 	 	}
 	
